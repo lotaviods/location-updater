@@ -12,12 +12,19 @@ import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.github.lotaviods.background.locationupdater.R
+import com.github.lotaviods.background.locationupdater.notification.MyNotificationService
 import com.github.lotaviods.background.locationupdater.receiver.LocationUpdateReceiver
+import com.google.android.gms.common.ConnectionResult
+import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.GooglePlayServicesUtil
+import com.google.android.gms.common.api.GoogleApi
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import kotlinx.coroutines.suspendCancellableCoroutine
+import org.json.JSONObject
 import java.text.DateFormat
 import java.util.Calendar
 import kotlin.coroutines.resume
@@ -33,7 +40,7 @@ class LocationWorker(context: Context, workerParams: WorkerParameters) :
     private fun buildLocationRequest(): LocationRequest {
 
         return LocationRequest
-            .Builder(Priority.PRIORITY_HIGH_ACCURACY, UPDATE_INTERVAL)
+            .Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, UPDATE_INTERVAL)
             .setMinUpdateDistanceMeters(MIN_DISTANCE)
             .build()
     }
@@ -58,7 +65,8 @@ class LocationWorker(context: Context, workerParams: WorkerParameters) :
                 PendingIntent.FLAG_MUTABLE
             )
 
-            val notification = createWorkerNotification(applicationContext, date)
+            val notification = MyNotificationService
+                .createWorkerNotification(applicationContext, date)
 
             val notificationManager =
                 applicationContext.getSystemService(NotificationManager::class.java) as NotificationManager
@@ -70,38 +78,13 @@ class LocationWorker(context: Context, workerParams: WorkerParameters) :
             continuation.resume(Result.success())
             return@suspendCancellableCoroutine
         }
-        continuation.resume(Result.failure())
+        continuation.resume(Result.success())
     }
 
     companion object {
-        private const val UPDATE_INTERVAL = (10 * 60 * 30).toLong() // 3 minutes
-        private const val MIN_DISTANCE = 05f // 5 meters
+        const val UPDATE_INTERVAL = (1000 * 60 * 30).toLong() // 3 minutes
+        const val MIN_DISTANCE = 15f // 15 meters
     }
 
-    private fun createWorkerNotification(context: Context?, date: String): Notification {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
 
-            Notification.Builder(context, "default")
-                .setContentTitle("Worker executed: $date")
-                .setSmallIcon(
-                    Icon.createWithResource(
-                        context,
-                        android.R.drawable.ic_menu_mylocation
-                    )
-                )
-                .setSubText("lastLocation")
-                .build()
-        } else {
-            Notification.Builder(context)
-                .setContentTitle("Worker executed: $date")
-                .setSmallIcon(
-                    Icon.createWithResource(
-                        context,
-                        android.R.drawable.ic_menu_mylocation
-                    )
-                )
-                .setSubText("lastLocation")
-                .build()
-        }
-    }
 }

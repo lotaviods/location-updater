@@ -1,17 +1,20 @@
 package com.github.lotaviods.background.locationupdater.receiver
 
-import android.app.Notification
+import android.app.ActivityManager
 import android.app.NotificationManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Icon
-import android.os.Build
 import android.util.Log
+import com.github.lotaviods.background.locationupdater.helper.ActivityServiceHelper.isAppInForeground
+import com.github.lotaviods.background.locationupdater.notification.MyNotificationService
 import com.google.android.gms.location.LocationResult
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.DateFormat
 import java.util.Calendar
 import kotlin.random.Random
+
 
 class LocationUpdateReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
@@ -20,7 +23,7 @@ class LocationUpdateReceiver : BroadcastReceiver() {
 
         val location = intent?.let { LocationResult.extractResult(it) }
 
-        val notification = createLastLocationNotification(context, location, date)
+        val notification = MyNotificationService.createLocationReceivedNotification(context, location, date)
 
         val notificationManager = context?.getSystemService(NotificationManager::class.java) as NotificationManager
 
@@ -31,34 +34,36 @@ class LocationUpdateReceiver : BroadcastReceiver() {
             "onReceive: lastLocale: latitude - ${location?.lastLocation?.latitude} longitude - ${location?.lastLocation?.longitude}"
         )
 
+        saveLocationPrefs(context, location, date)
 
-        val prefs = context.getSharedPreferences("location", Context.MODE_PRIVATE)
-        val editor = prefs?.edit()
-
-        editor?.putString("last_latitude", (location?.lastLocation?.latitude).toString())
-        editor?.putString("last_longitude", (location?.lastLocation?.longitude).toString())
-        editor?.putString("last_date", date)
-        editor?.apply()
     }
 
+    private fun saveLocationPrefs(context: Context, location: LocationResult?, date: String, ) {
+        val prefs = context.getSharedPreferences("location", Context.MODE_PRIVATE)
+        val editor = prefs?.edit()
+        val oldLocation = prefs.getString("last_location", "{}") ?: "{}"
 
-    private fun createLastLocationNotification(context: Context?, location: LocationResult?, date: String): Notification {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val jsonObject = JSONObject(oldLocation)
 
-            Notification.Builder(context, "default")
-                .setContentTitle("onReceive location: $date")
-                .setSmallIcon(Icon.createWithResource(context, android.R.drawable.ic_menu_mylocation))
-                .setContentText("latitude: ${location?.lastLocation?.latitude} longitude: ${location?.lastLocation?.longitude}")
-                .setSubText("lastLocation")
-                .build()
-        } else {
-            Notification.Builder(context)
-                .setContentTitle("onReceive location: $date")
-                .setSmallIcon(Icon.createWithResource(context, android.R.drawable.ic_menu_mylocation))
-                .setContentText("latitude: ${location?.lastLocation?.latitude} longitude: ${location?.lastLocation?.longitude}")
-                .setSubText("lastLocation")
-                .build()
+        if (!jsonObject.has("last_location")) {
+            // Add the "last_location" key and value.
+            jsonObject.put("last_location", JSONArray())
         }
+
+        val locationArray = jsonObject.getJSONArray("last_location")
+
+
+        locationArray.put(
+            JSONObject()
+                .put("latitude", location?.lastLocation?.latitude.toString())
+                .put("longitude", location?.lastLocation?.longitude.toString())
+                .put("time", date)
+                .put("background", !isAppInForeground(context))
+        )
+
+        editor?.putString("last_location", jsonObject.toString())
+
+        editor?.apply()
     }
 
     companion object {

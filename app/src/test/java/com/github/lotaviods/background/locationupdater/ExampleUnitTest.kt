@@ -1,4 +1,4 @@
-package com.github.lotaviods.mqtt.myapplication
+package com.github.lotaviods.background.locationupdater
 
 import org.junit.Test
 
