@@ -17,10 +17,8 @@ import androidx.activity.result.ActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -186,7 +184,7 @@ private fun GeofenceContent(
                 Text("Start geofence")
             }
         }
-        Row (horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = {
                     clearLocations(
@@ -213,7 +211,14 @@ fun removeVirtualFence(geofencingClient: GeofencingClient, context: Context) {
             "Geofence removed",
             Toast.LENGTH_LONG
         ).show()
+
+        removeFenceFromPrefs(context)
     }
+}
+
+fun removeFenceFromPrefs(context: Context) {
+    val prefs = context.getSharedPreferences("geofence_updates", Context.MODE_PRIVATE)
+    prefs.edit().clear().apply()
 }
 
 private fun getGeofencingRequest(geofenceList: List<Geofence>): GeofencingRequest {
@@ -254,7 +259,7 @@ private fun createVirtualFence(
             .setCircularRegion(
                 location?.latitude ?: 0.0,
                 location?.longitude ?: 0.0,
-                100.0f
+                RADIOS
             )
 
             // Set the expiration duration of the geofence. This geofence gets automatically
@@ -274,6 +279,12 @@ private fun createVirtualFence(
             addOnSuccessListener {
                 // Geofences added
                 Toast.makeText(context, "Geofence created", Toast.LENGTH_SHORT).show()
+                saveGeofenceInPrefs(
+                    context,
+                    (location?.latitude ?: 0.0).toString(),
+                    (location?.longitude ?: 0.0).toString(),
+                    RADIOS.toString()
+                )
                 // ...
             }
             addOnFailureListener {
@@ -284,6 +295,13 @@ private fun createVirtualFence(
         }
     }
 
+}
+
+fun saveGeofenceInPrefs(context: Context, lat: String, long: String, radios: String) {
+    val prefs = context.getSharedPreferences("geofence_updates", Context.MODE_PRIVATE)
+    prefs.edit().apply {
+        putString("geofence", "$lat, $long, $radios")
+    }.apply()
 }
 
 @SuppressLint("MissingPermission")
@@ -356,3 +374,5 @@ private fun askLocation(
         }
     }
 }
+
+const val RADIOS = 100.0f

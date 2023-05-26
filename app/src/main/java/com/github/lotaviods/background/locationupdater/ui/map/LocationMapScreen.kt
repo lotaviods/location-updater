@@ -16,6 +16,8 @@ import java.io.File
 fun LocationMapScreen(navController: NavHostController) {
     val context = LocalContext.current
     val prefs = context.getSharedPreferences("location", Context.MODE_PRIVATE)
+    val geoPrefs = context.getSharedPreferences("geofence_updates", Context.MODE_PRIVATE)
+    val geoFence = geoPrefs.getString("geofence", "")
     val oldLocation = prefs.getString("last_location", "{}") ?: "{}"
     val jsonObject = JSONObject(oldLocation).apply {
         if (!this.has("last_location")) {
@@ -23,6 +25,27 @@ fun LocationMapScreen(navController: NavHostController) {
             // Add the "last_location" key and value.
             this.put("last_location", JSONArray())
         }
+    }
+    val geofencingList: MutableList<Triple<Double, Double, Double>> = mutableListOf()
+
+    geoFence?.split(",")?.map { it.trim() }?.let {
+        // Extract the individual values and convert them to Double
+        val lat = it[0].toDouble()
+        val lon = it[1].toDouble()
+        val radius = it[2].toDouble()
+
+        geofencingList.add(Triple(lat, lon, radius))
+    }
+
+    val geofenceScript = geofencingList.joinToString("\n") { (lat, lon, radius) ->
+        """
+    var circle = L.circle([$lat, $lon], {
+        color: 'red',
+        fillColor: '#f03',
+        fillOpacity: 0.5,
+        radius: $radius
+    }).addTo(map);
+    """
     }
 
     val locationArray = jsonObject.getJSONArray("last_location")
@@ -77,15 +100,19 @@ fun LocationMapScreen(navController: NavHostController) {
                 markers.addLayer(marker);
             });
             map.addLayer(markers);
+
+            // Add geofences
         </script>
     </body>
     </html>
 """.trimIndent()
 
+    val modifiedLeafletHtml = leafletHtml.replace("// Add geofences", geofenceScript)
+
     val fileName = "map.html"
     val dir = context.getExternalFilesDir(null)
     val file = File(dir, fileName)
-    file.writeText(leafletHtml)
+    file.writeText(modifiedLeafletHtml)
 
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 
@@ -93,8 +120,10 @@ fun LocationMapScreen(navController: NavHostController) {
     intent.data = uri
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
-    if (intent.resolveActivity(context.packageManager) != null) {
-        context.startActivity(intent)
-        (context as? MainActivity)?.finish()
+    LaunchedEffect(Unit) {
+        if (intent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(intent)
+            (context as? MainActivity)?.finish()
+        }
     }
 }
